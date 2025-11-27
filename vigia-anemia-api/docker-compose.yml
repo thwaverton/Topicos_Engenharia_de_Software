@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # API de ingestão de hemogramas
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vigia-anemia-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - AWS_REGION=us-east-1
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    networks:
+      - vigia-network
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis para cache de tokens
+  redis:
+    image: redis:7-alpine
+    container_name: vigia-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - vigia-network
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # LocalStack para simular AWS SQS em desenvolvimento
+  localstack:
+    image: localstack/localstack:latest
+    container_name: vigia-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=sqs
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+    networks:
+      - vigia-network
+    volumes:
+      - localstack-data:/tmp/localstack
+    restart: unless-stopped
+
+networks:
+  vigia-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  localstack-data:
+
